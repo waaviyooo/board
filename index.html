@@ -138,7 +138,9 @@ table.lhb td.amt{text-align:right;font-family:var(--num);white-space:nowrap}
   <button data-t="ash">A股<small>09:30–15:00</small></button>
   <button data-t="rev">复盘<small>15:00–21:00</small></button>
   <button data-t="us">美股<small>21:00–04:00</small></button>
+  <button data-t="port">组合<small>总览</small></button>
   <button data-t="talk">谈资<small>随时</small></button>
+  <button data-t="rule">章程<small>纪律</small></button>
 </div></nav>
 
 <main>
@@ -151,6 +153,8 @@ table.lhb td.amt{text-align:right;font-family:var(--num);white-space:nowrap}
         <div class="card"><h2><span class="dot" style="background:var(--warn)"></span>商品与汇率</h2><div class="rows" id="preMacro"></div></div>
         <div class="card"><h2><span class="dot" style="background:var(--warn)"></span>跨境 ETF · 今日溢价预警</h2><div class="rows" id="preQdii"></div>
         <div class="hint">溢价 = 昨日收盘价 ÷ 昨日单位净值 − 1。隔夜纳指若大跌而 ETF 高溢价，今日开盘存在双杀风险；溢价 &gt; 3% 建议改用场外联接基金申购。</div></div>
+        <div class="card"><h2><span class="dot" style="background:var(--warn)"></span>估值温度 · 五年分位<span class="side">决定定投强度</span></h2><div class="rows" id="valPos"></div>
+        <div class="hint">分位 &lt;20%（绿）加倍定投并可动用预备队；20–80%（灰）常规定投；&gt;80%（红）暂停买入。<b>口径说明</b>：免费接口无法取到可靠的历史PE，此处用「近五年价格分位」作代理指标——牛市末期会低估真实估值风险，请结合基本面判断，勿单独作为唯一依据。</div></div>
         <div class="card"><h2><span class="dot" style="background:var(--warn)"></span>事件日历 · 未来两周</h2><div class="rows" id="calPre"></div></div>
       </div>
     </div>
@@ -180,7 +184,15 @@ table.lhb td.amt{text-align:right;font-family:var(--num);white-space:nowrap}
       <div class="card"><h2><span class="dot" style="background:var(--ash)"></span>板块全日资金流</h2><div class="flow rows" id="revFlow"></div>
       <div class="hint">16:00 后美股盘前启动，可切到「美股」页看你的持仓盘前价。</div></div>
     </div>
+    <div class="card"><h2><span class="dot" style="background:var(--ash)"></span>资金迁徙 · 全天终局<span class="side">收盘后定格</span></h2>
+      <canvas id="migcv2" style="width:100%;height:320px;display:block"></canvas>
+      <div class="hint">左绿=净流出 · 右红=净流入 · 灰=市场净离场。连线为按额度加权的可视化演绎，非真实资金追踪。</div></div>
     <div class="card"><h2><span class="dot" style="background:var(--warn)"></span>事件日历 · 未来两周</h2><div class="rows" id="calRev"></div></div>
+    <div class="card"><h2><span class="dot" style="background:var(--warn)"></span>汇率对跨境持仓的影响</h2><div class="rows" id="fxImpact"></div>
+      <div class="hint">你的纳指/标普/美国50 ETF以人民币计价：人民币贬值会额外增厚收益，升值则侵蚀收益。此处显示近20日汇率变动带来的隐含损益。</div></div>
+    <div class="card"><h2><span class="dot" style="background:var(--warn)"></span>一键复盘导出</h2>
+      <button onclick="exportBrief()" style="width:100%;background:var(--surface2);border:1px solid var(--line);color:var(--tx);border-radius:8px;padding:11px;font-size:.85rem;cursor:pointer;font-family:inherit">复制今日全量数据到剪贴板</button>
+      <div class="hint" id="expHint">复制后粘贴进 Claude / ChatGPT，让 AI 生成当日复盘解读。数据含指数、持仓、溢价、板块资金、事件日历。</div></div>
   </section>
 
   <!-- 美股 -->
@@ -194,9 +206,30 @@ table.lhb td.amt{text-align:right;font-family:var(--num);white-space:nowrap}
 
   <!-- 谈资 -->
   <section class="tab" id="tab-talk">
+    <div class="card"><h2><span class="dot" style="background:var(--up)"></span>资金迁徙 · 今日全景<span class="side">主力净流向 · 动态演绎</span></h2>
+      <canvas id="migcv" style="width:100%;height:340px;display:block"></canvas>
+      <div class="hint">左绿=净流出板块 · 右红=净流入板块 · 灰桶=市场净离场。流向连线为按比例的可视化演绎（交易所仅披露各板块净额，不披露真实去向），适合聊行情，不适合下单。</div></div>
     <div class="card"><h2><span class="dot" style="background:var(--up)"></span>连板梯队 · 涨停池</h2><div id="ztPool"><div class="err">加载中…</div></div>
     <div class="hint">见客户前 2 分钟速览：最高板是市场情绪高度，梯队断层 = 情绪退潮信号。</div></div>
     <div class="card"><h2><span class="dot" style="background:var(--up)"></span>龙虎榜 · 净买入排序</h2><div id="lhb"><div class="err">加载中…</div></div></div>
+    <div class="card"><h2><span class="dot" style="background:var(--up)"></span>技术指标 · 上证指数<span class="side">聊天用，别据此下单</span></h2><div class="rows" id="techInd"></div>
+      <div class="hint">MACD/RSI/KDJ 属短周期指标，对中长线 ETF 持有者是噪音。放在谈资页是因为它是散户通用语言，聊行情时用得上。</div></div>
+  </section>
+
+  <!-- 组合总览 -->
+  <section class="tab" id="tab-port">
+    <div class="card"><h2><span class="dot" style="background:var(--warn)"></span>资产配置 · 目标 vs 现状</h2><div class="rows" id="portAlloc"></div>
+      <div class="hint">比例在文件顶部 ALLOC 中维护。偏离目标超 5 个百分点即触发再平衡（章程第二条）。</div></div>
+    <div class="card"><h2><span class="dot" style="background:var(--warn)"></span>穿透暴露 · 我到底在赌几件事</h2><div class="rows" id="portExpo"></div>
+      <div class="hint">按主题归并你的持仓：科技主题（含A股科创系、跨境美股ETF、美股个股）合并计算，这是你的真实单一赌注。章程红线：穿透后单一主题不超过总资产 60%。</div></div>
+    <div class="card"><h2><span class="dot" style="background:var(--ash)"></span>场外基金 · 净值估算</h2><div class="rows" id="portOtc"></div>
+      <div class="hint">在文件顶部 OTC 数组添加基金代码即可纳入监控（代码可在天天基金网搜索基金名称获得）。</div></div>
+  </section>
+
+  <!-- 章程 -->
+  <section class="tab" id="tab-rule">
+    <div class="card"><h2><span class="dot" style="background:var(--up)"></span>投资章程 v1.0<span class="side">冲动时读它</span></h2>
+      <div id="ruleBody" style="font-size:.8rem;line-height:1.75;color:var(--tx)"></div></div>
   </section>
 </main>
 
@@ -234,6 +267,14 @@ const A_ETFS=[
  {c:'589990',n:'科创综指ETF华夏',m:1}
 ];
 /* mk 缺省=105(纳斯达克)；177=韩交所(kr:1 不取美股延时段价) */
+/* 组合权重(占总资产%)。按你的实际比例改这里, 组合页据此计算 */
+const ALLOC={equity:70,bond:10,gold:10,wealth:10,cash:10,reserve:10};
+/* 场外基金: 代码可在天天基金搜索后填入, 净值估算自动拉取 */
+const OTC=[{c:'002611',n:'博时黄金ETF联接C',k:'gold'}];
+/* 估值分位观察池 */
+const VAL_IDX=[['1.000300','沪深300'],['1.000688','科创50'],['0.399006','创业板指'],['100.NDX','纳斯达克100'],['100.SPX','标普500']];
+/* 科技主题关键词(用于穿透暴露计算) */
+const TECH_KW=['纳指','纳斯达克','标普','美国','科创','芯片','半导体','机器人','创业板','高端装备'];
 const US_STOCKS=[
  {t:'NVDA'},{t:'AMD'},{t:'AVGO'},{t:'MU'},{t:'MRVL'},
  {t:'SPCX',n:'SPCX·SpaceX'},
@@ -613,15 +654,229 @@ async function loadQdiiWarn(){
   }catch(e){fail(el,'loadQdiiWarn')}
 }
 
+/* ===== 资金迁徙动画引擎 ===== */
+const MIG={on:false,outs:[],ins:[],parts:[],raf:0};
+async function loadMigration(){
+  if(!document.getElementById('migcv')&&!document.getElementById('migcv2'))return;
+  try{
+    const d=await cjsonp('https://push2.eastmoney.com/api/qt/clist/get?po=1&pz=90&pn=1&np=1&fltt=2&invt=2&fid=f62&fs=m:90+t:2&fields=f12,f14,f62&ut='+UT,60);
+    const all=((d&&d.data&&d.data.diff)||[]).map(x=>({name:x.f14,amt:x.f62})).filter(x=>x.amt!=null);
+    if(!all.length)return;
+    const net=all.reduce((s0,x)=>s0+x.amt,0);
+    MIG.outs=all.filter(x=>x.amt<0).sort((a,b)=>a.amt-b.amt).slice(0,9).map(x=>({n:x.name,v:-x.amt}));
+    MIG.ins=all.filter(x=>x.amt>0).sort((a,b)=>b.amt-a.amt).slice(0,8).map(x=>({n:x.name,v:x.amt,c:'#F0524A'}));
+    if(net<0)MIG.ins.push({n:'市场离场',v:-net,c:'#8B949E'});
+    else MIG.outs.push({n:'场外入场',v:net});
+    MIG.parts=[];
+    if(!MIG.raf)migTick();
+  }catch(e){}
+}
+function migPick(list){
+  const tot=list.reduce((s0,x)=>s0+x.v,0);let r=Math.random()*tot;
+  for(let i=0;i<list.length;i++){r-=list[i].v;if(r<=0)return i}
+  return list.length-1;
+}
+function migTick(){
+  MIG.raf=requestAnimationFrame(migTick);
+  const cv=document.getElementById(cur==='rev'?'migcv2':'migcv');
+  if(!cv||!MIG.on||!MIG.outs.length||!cv.offsetWidth){return}
+  const dpr=2,W=cv.width=cv.offsetWidth*dpr,H=cv.height=cv.offsetHeight*dpr;
+  const c=cv.getContext('2d');c.clearRect(0,0,W,H);
+  const F=10*dpr;c.font=F+'px -apple-system,PingFang SC,sans-serif';
+  const oy=i=>30+i*(H-60)/Math.max(MIG.outs.length-1,1);
+  const iy=i=>30+i*(H-60)/Math.max(MIG.ins.length-1,1);
+  const LX=W*0.315,RX=W*0.685;
+  const omax=Math.max(...MIG.outs.map(x=>x.v)),imax=Math.max(...MIG.ins.map(x=>x.v));
+  /* 左侧流出 */
+  MIG.outs.forEach((o,i)=>{const y=oy(i),bw=6*dpr+ (o.v/omax)*10*dpr;
+    c.fillStyle='#36B37E';c.fillRect(LX-bw/2,y-9*dpr,bw,18*dpr);
+    c.textAlign='right';c.fillStyle='#36B37E';c.fillText(o.v.toFixed(1)+'亿',LX-14*dpr-c.measureText(o.n).width-6*dpr,y+F/3);
+    c.fillStyle='#E9ECF0';c.fillText(o.n,LX-12*dpr,y+F/3);});
+  /* 右侧流入 */
+  MIG.ins.forEach((o,i)=>{const y=iy(i),bw=6*dpr+(o.v/imax)*10*dpr;
+    c.fillStyle=o.c;c.fillRect(RX-bw/2,y-9*dpr,bw,18*dpr);
+    c.textAlign='left';c.fillStyle='#E9ECF0';c.fillText(o.n,RX+12*dpr,y+F/3);
+    c.fillStyle=o.c;c.fillText(o.v.toFixed(1)+'亿',RX+14*dpr+c.measureText(o.n).width+6*dpr,y+F/3);});
+  /* 生成粒子 */
+  if(MIG.parts.length<130&&Math.random()<0.9){
+    const oi=migPick(MIG.outs),ii=migPick(MIG.ins);
+    MIG.parts.push({y1:oy(oi),y2:iy(ii),t:0,sp:0.004+Math.random()*0.006,col:MIG.ins[ii].c,r:(1+Math.random()*1.6)*dpr});
+  }
+  /* 绘制粒子: 三次贝塞尔 LX→RX */
+  MIG.parts=MIG.parts.filter(pp=>pp.t<=1);
+  MIG.parts.forEach(pp=>{
+    pp.t+=pp.sp;const t=pp.t,mt=1-t;
+    const x=mt*mt*mt*LX+3*mt*mt*t*(W*0.45)+3*mt*t*t*(W*0.55)+t*t*t*RX;
+    const y=mt*mt*mt*pp.y1+3*mt*mt*t*pp.y1+3*mt*t*t*pp.y2+t*t*t*pp.y2;
+    c.globalAlpha=0.25+0.75*Math.sin(Math.PI*t);
+    c.fillStyle=t<0.5?'#36B37E':pp.col;
+    c.beginPath();c.arc(x,y,pp.r,0,6.283);c.fill();
+  });
+  c.globalAlpha=1;
+}
+
+
+/* ===== 估值(价格)分位 ===== */
+async function loadValPos(){
+  const el=document.getElementById('valPos');if(!el)return;
+  let html='';
+  for(const [sec,name] of VAL_IDX){
+    try{
+      const d=await cjsonp('https://push2his.eastmoney.com/api/qt/stock/kline/get?secid='+sec+'&klt=101&fqt=1&lmt=1250&end=20500101&fields1=f1,f2,f3&fields2=f51,f53&ut='+UT,3600);
+      const cl=((d&&d.data&&d.data.klines)||[]).map(k=>parseFloat(k.split(',')[1])).filter(v=>!isNaN(v));
+      if(cl.length<200)continue;
+      const now=cl[cl.length-1];
+      const pos=cl.filter(v=>v<=now).length/cl.length*100;
+      const yrs=(cl.length/244).toFixed(1);
+      const col=pos<20?'var(--dn)':(pos>80?'var(--up)':'var(--tx2)');
+      const act=pos<20?'加倍定投':(pos>80?'暂停买入':'常规定投');
+      html+='<div class="r"><div class="name"><b>'+name+'</b><span>近'+yrs+'年 · '+cl.length+'个交易日</span></div>'+
+        '<div class="prem"><div class="bar"><b style="left:0;width:'+pos.toFixed(0)+'%;background:'+col+'"></b></div>'+
+        '<div class="v" style="color:'+col+'">'+pos.toFixed(0)+'%</div></div>'+
+        '<div class="chip '+(pos<20?'d':(pos>80?'u':'f'))+'" style="font-size:.64rem;min-width:56px">'+act+'</div></div>';
+    }catch(e){}
+  }
+  el.innerHTML=html||'<div class="err">分位数据加载失败</div>';
+}
+
+/* ===== 组合总览 ===== */
+async function loadPortfolio(){
+  const ea=document.getElementById('portAlloc');
+  if(ea){
+    const inv=ALLOC.equity+ALLOC.bond+ALLOC.gold+ALLOC.wealth;
+    const rows=[['权益',ALLOC.equity,70],['类债(债+理财)',ALLOC.bond+ALLOC.wealth,20],['黄金',ALLOC.gold,10]];
+    ea.innerHTML=rows.map(r=>{
+      const cur=r[1]/inv*100,dev=cur-r[2];
+      const hot=Math.abs(dev)>5;
+      return '<div class="r"><div class="name"><b>'+r[0]+'</b><span>目标 '+r[2]+'%</span></div>'+
+        '<div class="px"><b class="num">'+cur.toFixed(1)+'%</b><span class="num '+(dev>0?'up':(dev<0?'dn':'flat'))+'">'+(dev>0?'+':'')+dev.toFixed(1)+'pt</span></div>'+
+        '<div class="chip '+(hot?'u':'f')+'" style="font-size:.64rem;min-width:62px">'+(hot?'触发再平衡':'区间内')+'</div></div>';
+    }).join('')+
+    '<div class="r"><div class="name"><b>战略预备队</b><span>现金 + 家庭后备</span></div>'+
+    '<div class="px"><b class="num">'+(ALLOC.cash+ALLOC.reserve)+'%</b></div>'+
+    '<div class="chip f" style="font-size:.64rem;min-width:62px">分位&lt;20%才动</div></div>';
+  }
+  const ee=document.getElementById('portExpo');
+  if(ee){
+    const techA=A_ETFS.filter(e=>TECH_KW.some(k=>e.n.includes(k))).length;
+    const techShare=(techA/A_ETFS.length)*ALLOC.equity;
+    const usShare=0;
+    const total=techShare;
+    const over=total>60;
+    ee.innerHTML=
+     '<div class="r"><div class="name"><b>科技主题(穿透合并)</b><span>A股科创系+跨境ETF+美股算力链</span></div>'+
+     '<div class="px"><b class="num '+(over?'up':'')+'">≈'+total.toFixed(0)+'%</b><span class="num flat">红线 60%</span></div>'+
+     '<div class="chip '+(over?'u':'f')+'" style="font-size:.64rem;min-width:62px">'+(over?'已超红线':'红线内')+'</div></div>'+
+     '<div class="r"><div class="name"><b>持仓ETF数 vs 独立赌注数</b><span>相关性穿透结论</span></div>'+
+     '<div class="px"><b class="num">'+A_ETFS.length+' → 约4</b></div>'+
+     '<div class="chip f" style="font-size:.64rem;min-width:62px">看似分散</div></div>'+
+     '<div class="hint" style="padding-top:8px">估算口径：按持仓ETF中科技主题只数占比 × 权益仓位。精确穿透需按各标的实际金额加权，可在 ALLOC 与 A_ETFS 中补充金额后升级。</div>';
+  }
+  const eo=document.getElementById('portOtc');
+  if(eo){
+    if(!OTC.length){eo.innerHTML='<div class="err">尚未配置场外基金代码</div>';return}
+    const gz=await Promise.all(OTC.map(o=>fundgz(o.c)));
+    eo.innerHTML=OTC.map((o,i)=>{
+      const g=gz[i];
+      if(!g)return '<div class="r"><div class="name"><b>'+o.n+'</b><span>'+o.c+'</span></div><div class="px"><b class="num flat">--</b></div></div>';
+      const pct=parseFloat(g.gszzl);
+      return '<div class="r"><div class="name"><b>'+o.n+'</b><span>'+o.c+' · 估值 '+(g.gztime||'')+'</span></div>'+
+        '<div class="px"><b class="num '+cls(pct)+'">'+g.gsz+'</b><span class="num flat">昨净 '+g.dwjz+'</span></div>'+chip(pct)+'</div>';
+    }).join('');
+  }
+}
+
+/* ===== 汇率影响 ===== */
+async function loadFxImpact(){
+  const el=document.getElementById('fxImpact');if(!el)return;
+  try{
+    const d=await cjsonp('https://push2his.eastmoney.com/api/qt/stock/kline/get?secid=133.USDCNH&klt=101&fqt=1&lmt=30&end=20500101&fields1=f1,f2,f3&fields2=f51,f53&ut='+UT,3600);
+    const cl=((d&&d.data&&d.data.klines)||[]).map(k=>parseFloat(k.split(',')[1])).filter(v=>!isNaN(v));
+    if(cl.length<21){el.innerHTML='<div class="err">汇率历史未返回</div>';return}
+    const now=cl[cl.length-1],ago=cl[cl.length-21];
+    const chg=(now/ago-1)*100;
+    const cross=A_ETFS.filter(e=>e.x).length;
+    const crossShare=(cross/A_ETFS.length*ALLOC.equity);
+    const impact=chg*crossShare/100;
+    el.innerHTML=
+     '<div class="r"><div class="name"><b>离岸人民币 近20日</b><span>USDCNH '+ago.toFixed(4)+' → '+now.toFixed(4)+'</span></div>'+
+     '<div class="px"><b class="num '+cls(chg)+'">'+fmtPct(chg)+'</b><span class="num flat">'+(chg>0?'人民币贬值':'人民币升值')+'</span></div></div>'+
+     '<div class="r"><div class="name"><b>对跨境持仓的隐含损益</b><span>跨境ETF约占总资产 '+crossShare.toFixed(0)+'%</span></div>'+
+     '<div class="px"><b class="num '+cls(impact)+'">'+(impact>0?'+':'')+impact.toFixed(2)+'%</b><span class="num flat">占总资产</span></div>'+
+     '<div class="chip '+(impact>0?'u':'d')+'" style="font-size:.64rem;min-width:56px">'+(impact>0?'汇率增厚':'汇率侵蚀')+'</div></div>';
+  }catch(e){el.innerHTML='<div class="err">汇率影响计算失败</div>'}
+}
+
+/* ===== 技术指标(谈资) ===== */
+async function loadTech(){
+  const el=document.getElementById('techInd');if(!el)return;
+  try{
+    const cl=await kline('1.000001');
+    if(cl.length<60){el.innerHTML='<div class="err">数据不足</div>';return}
+    const ema=(a,n)=>{const k=2/(n+1);let e=a[0];const o=[e];for(let i=1;i<a.length;i++){e=a[i]*k+e*(1-k);o.push(e)}return o};
+    const e12=ema(cl,12),e26=ema(cl,26);
+    const dif=cl.map((_,i)=>e12[i]-e26[i]);
+    const dea=ema(dif,9);
+    const macd=(dif[dif.length-1]-dea[dea.length-1])*2;
+    let up=0,dn=0;
+    for(let i=cl.length-14;i<cl.length;i++){const d=cl[i]-cl[i-1];d>=0?up+=d:dn-=d}
+    const rsi=dn===0?100:100-100/(1+up/dn);
+    const win=cl.slice(-9),lo=Math.min(...win),hi=Math.max(...win);
+    const kdj=hi===lo?50:(cl[cl.length-1]-lo)/(hi-lo)*100;
+    const row=(n,v,txt,c)=>'<div class="r"><div class="name"><b>'+n+'</b><span>'+txt+'</span></div><div class="px"><b class="num '+c+'">'+v+'</b></div></div>';
+    el.innerHTML=
+      row('MACD 柱',macd.toFixed(2),macd>0?'DIF在DEA上方，多头动能':'DIF在DEA下方，空头动能',cls(macd))+
+      row('RSI(14)',rsi.toFixed(1),rsi>70?'超买区':(rsi<30?'超卖区':'中性区'),rsi>70?'up':(rsi<30?'dn':'flat'))+
+      row('KDJ 位置',kdj.toFixed(1),'9日区间内相对位置',kdj>80?'up':(kdj<20?'dn':'flat'));
+  }catch(e){el.innerHTML='<div class="err">指标计算失败</div>'}
+}
+
+/* ===== 章程 ===== */
+const CHARTER=[
+ ['一、我在赌什么','组合的真实赌注只有约 3–4 个：①全球AI/科技周期（穿透占比过半）②A股新能源链 ③中国市场贝塔 ④黄金/债券对冲。<b>新增持仓前先问：这是第5个赌注，还是又在给前4个加码？</b>'],
+ ['二、仓位铁律','目标 权益70/类债20/金10，偏离超5个百分点触发再平衡。现金10%+家庭后备10%=战略预备队，<b>平时一分不动</b>，仅当核心指数分位&lt;20%时分三批投入。穿透后单一主题不超过总资产60%。'],
+ ['三、买入纪律','①查估值分位：&gt;80%暂停，&lt;20%加倍 ②买跨境ETF先查溢价：&gt;3%改走场外联接 ③买美股个股过五问：买趋势还是买盈利？现价隐含多高增长？跌30%为何还敢加？什么事实出现算我错？错了会不会伤及组合？<b>答不全，不下单。</b>'],
+ ['四、持有与验证','每季度验证原始假设（不是看股价）：科创芯片=国产替代与AI需求增速；美股算力链=AI资本开支周期与护城河；新能源=渗透率与产能出清。<b>假设被证伪→卖出，与盈亏无关；股价跌但假设完好→预备队规则接管。</b>'],
+ ['五、退出与风控','ETF：月末查60日均线灯，跌破且假设存疑→减半仓，连续两月站不回→清仓观察。个股卖出信号（满足其一减仓，其二清仓）：盈利预期连续两季下修/行业格局颠覆/护城河实证受损/估值与增长严重失配/原始假设证伪。<b>组合浮亏25%属设计内情形，应对动作只有再平衡与按分位动用预备队——割肉不在剧本里。</b>'],
+ ['六、禁区','龙虎榜、涨停情绪、盘中资金流、技术指标：仅作谈资，永不据此下单。不做杠杆、不裸卖期权、不追当日热点。<b>出现"这次不一样"的念头时，重读第五条。</b>']
+];
+function loadCharter(){
+  const el=document.getElementById('ruleBody');if(!el||el.dataset.done)return;
+  el.dataset.done='1';
+  el.innerHTML='<div style="color:var(--tx3);font-size:.72rem;margin-bottom:14px;padding-bottom:10px;border-bottom:1px solid var(--line)">本章程写于冷静时，用于约束冲动时。修改需间隔 30 天冷静期。</div>'+
+   CHARTER.map(c=>'<div style="margin-bottom:14px"><div style="color:var(--warn);font-weight:600;margin-bottom:4px">'+c[0]+'</div><div style="color:var(--tx2)">'+c[1]+'</div></div>').join('');
+}
+
+/* ===== 一键复盘导出 ===== */
+function exportBrief(){
+  const grab=id=>{const e=document.getElementById(id);return e?e.innerText.replace(/\n{2,}/g,'\n'):''};
+  const t=bj();
+  const txt='【'+t.getFullYear()+'-'+String(t.getMonth()+1).padStart(2,'0')+'-'+String(t.getDate()).padStart(2,'0')+' 市场数据快照】\n\n'+
+    '## A股指数\n'+grab('revIdx')+'\n\n## 我的持仓ETF(价格/溢价/均线)\n'+grab('revHold')+
+    '\n\n## 板块资金流\n'+grab('revFlow')+'\n\n## 美股与宏观\n'+grab('preUsIdx')+'\n'+grab('preUsHold')+'\n'+grab('preMacro')+
+    '\n\n## 估值分位\n'+grab('valPos')+'\n\n## 事件日历\n'+grab('calRev')+
+    '\n\n---\n请基于以上数据生成当日复盘：1)今日市场主线与资金态度 2)我的持仓中值得注意的异动 3)结合估值分位，明日是否有加仓或暂停的信号 4)不要给出短线买卖建议，我是中长线ETF投资者。';
+  const done=ok=>{const h=document.getElementById('expHint');if(h)h.innerHTML=ok?'<b style="color:var(--dn)">已复制，去 Claude / ChatGPT 粘贴即可</b>':'复制失败，请长按下方文本手动复制';};
+  if(navigator.clipboard&&navigator.clipboard.writeText){
+    navigator.clipboard.writeText(txt).then(()=>done(true)).catch(()=>done(false));
+  }else{
+    const ta=document.createElement('textarea');ta.value=txt;document.body.appendChild(ta);ta.select();
+    try{document.execCommand('copy');done(true)}catch(e){done(false)}
+    ta.remove();
+  }
+}
+
 /* ================= 页面调度 ================= */
 const LOADERS={
-  pre:()=>{loadIdx(PRE_IDX,'preUsIdx',true,true);loadUsHold('preUsHold','close');loadMacro('preMacro');loadQdiiWarn();loadCal('calPre');
+  pre:()=>{loadIdx(PRE_IDX,'preUsIdx',true,true);loadUsHold('preUsHold','close');loadMacro('preMacro');loadQdiiWarn();loadCal('calPre');loadValPos();
            document.getElementById('usSessLabel').textContent='美股'+usSession()},
   ash:()=>{loadIdx(A_IDX,'ashIdx',true,false);loadAHold('ashHold');loadFlow('ashFlow');loadTurnover();loadMainFlow();loadNews('ashNews')},
-  rev:()=>{loadIdx(A_IDX,'revIdx',false,false);loadAHold('revHold');loadFlow('revFlow');loadCal('calRev')},
+  rev:()=>{loadIdx(A_IDX,'revIdx',false,false);loadAHold('revHold');loadFlow('revFlow');loadCal('calRev');loadMigration();loadFxImpact()},
   us:()=>{loadIdx(US_IDX,'usIdx',true,true);loadUsHold('usHold','live');loadMacro('usMacro');loadNews('usNews');
           document.getElementById('usSessLabel2').textContent='美股'+usSession()},
-  talk:()=>{loadZT();loadLHB()}
+  talk:()=>{loadMigration();loadZT();loadLHB();loadTech()},
+  port:()=>{loadPortfolio()},
+  rule:()=>{loadCharter()}
 };
 let cur=null;
 function defaultTab(){const h=bjHM();
@@ -633,6 +888,7 @@ function defaultTab(){const h=bjHM();
 }
 function switchTab(t){
   cur=t;
+  MIG.on=(t==='talk'||t==='rev');
   document.querySelectorAll('nav button').forEach(b=>b.classList.toggle('on',b.dataset.t===t));
   document.querySelectorAll('section.tab').forEach(s=>s.classList.toggle('on',s.id==='tab-'+t));
   refreshAll();
